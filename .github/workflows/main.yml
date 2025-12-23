@@ -1,0 +1,66 @@
+name: REST API Automation Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 9 * * *'  # Run daily at 9 AM UTC
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        java-version: ['11', '17']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up JDK ${{ matrix.java-version }}
+      uses: actions/setup-java@v3
+      with:
+        java-version: ${{ matrix.java-version }}
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: Create logs directory
+      run: mkdir -p logs test-output/ExtentReports
+    
+    - name: Build project with Maven
+      run: mvn clean install -DskipTests
+    
+    - name: Run REST API tests
+      run: mvn test
+    
+    - name: Generate test report
+      if: always()
+      run: |
+        echo "Test execution completed"
+        echo "Reports will be available in test-output/ExtentReports/"
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-reports-${{ matrix.java-version }}
+        path: test-output/ExtentReports/
+    
+    - name: Upload logs
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-logs-${{ matrix.java-version }}
+        path: logs/
+    
+    - name: Publish test results
+      if: always()
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      with:
+        files: target/surefire-reports/*.xml
+        check_name: Test Results - Java ${{ matrix.java-version }}
+        comment_mode: always
+      continue-on-error: true
